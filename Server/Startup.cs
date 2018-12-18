@@ -13,6 +13,9 @@ using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 using IdentityServer4.EntityFramework.DbContexts;
 using IdentityServer4.EntityFramework.Mappers;
+using Swashbuckle.AspNetCore.Swagger;
+using System.IO;
+using Microsoft.Extensions.PlatformAbstractions;
 
 namespace Server
 {
@@ -54,6 +57,37 @@ namespace Server
                     options.TokenCleanupInterval = 300;//令牌过期时间，默认为3600秒，一个小时
                 });
             //.AddInMemoryClients(Config.GetClients());
+
+            //Add Swagger
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new Info
+                {
+                    Version = "v1",
+                    Title = "Server接口文档"
+                });
+
+                //Set the comments path for the swagger json and ui.
+                var basePath = PlatformServices.Default.Application.ApplicationBasePath;
+                var xmlPath = Path.Combine(basePath, "Server.xml");
+                c.IncludeXmlComments(xmlPath);
+
+                //  c.OperationFilter<HttpHeaderOperation>(); // 添加httpHeader参数
+            });
+
+            //protect API
+            services.AddMvcCore()
+            .AddAuthorization()
+            .AddJsonFormatters();
+
+            services.AddAuthentication("Bearer")
+                .AddIdentityServerAuthentication(options =>
+                {
+                    options.Authority = "http://localhost:5000";
+                    options.RequireHttpsMetadata = false;
+
+                    options.ApiName = "api1";
+                });
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
         }
 
@@ -64,8 +98,18 @@ namespace Server
             //{
             //    app.UseDeveloperExceptionPage();
             //}
+
+            //AddSwagger
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Server接口文档");
+            });
+
             InitializeDatabase(app);
-            //app.UseMvc();
+            app.UseAuthentication();
+            app.UseIdentityServer();
+            app.UseMvc();
         }
 
         private void InitializeDatabase(IApplicationBuilder app)
